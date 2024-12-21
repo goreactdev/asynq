@@ -20,9 +20,6 @@ import (
 // queues and tasks.
 type Inspector struct {
 	rdb *rdb.RDB
-	// When an Inspector has been created with an existing Redis connection, we do
-	// not want to close it.
-	sharedConnection bool
 }
 
 // New returns a new instance of Inspector.
@@ -31,25 +28,13 @@ func NewInspector(r RedisConnOpt) *Inspector {
 	if !ok {
 		panic(fmt.Sprintf("inspeq: unsupported RedisConnOpt type %T", r))
 	}
-	inspector := NewInspectorFromRedisClient(c)
-	inspector.sharedConnection = false
-	return inspector
-}
-
-// NewInspectorFromRedisClient returns a new instance of Inspector given a redis.UniversalClient
-// Warning: The underlying redis connection pool will not be closed by Asynq, you are responsible for closing it.
-func NewInspectorFromRedisClient(c redis.UniversalClient) *Inspector {
 	return &Inspector{
-		rdb:              rdb.NewRDB(c),
-		sharedConnection: true,
+		rdb: rdb.NewRDB(c),
 	}
 }
 
 // Close closes the connection with redis.
 func (i *Inspector) Close() error {
-	if i.sharedConnection {
-		return fmt.Errorf("redis connection is shared so the Inspector can't be closed through asynq")
-	}
 	return i.rdb.Close()
 }
 
@@ -378,6 +363,53 @@ func (i *Inspector) ListActiveTasks(queue string, opts ...ListOption) ([]*TaskIn
 	}
 	return tasks, nil
 }
+
+
+// SearchTasksByID searches for tasks with IDs containing the given string across all states.
+// It returns a list of TaskInfo matching the search string.
+func (i *Inspector) SearchTasksByID(queue, searchStr string) ([]*TaskInfo, error) {
+    if err := base.ValidateQueueName(queue); err != nil {
+        return nil, fmt.Errorf("asynq: %v", err)
+    }
+
+    var allTasks []*TaskInfo
+    
+    // Helper function to append tasks if they match the search string
+    appendIfMatches := func(tasks []*TaskInfo) {
+        for _, task := range tasks {
+            if strings.Contains(task.ID, searchStr) {
+                allTasks = append(allTasks, task)
+            }
+        }
+    }
+
+    // Search in all possible states
+    // Using a large page size to get all tasks (adjust if needed)
+    opt := PageSize(1000)
+
+    // Check pending tasks
+    if tasks, err := i.ListPendingTasks(queue, opt); err == nil {
+        appendIfMatches(tasks)
+    }
+
+    // Check active tasks
+    if tasks, err := i.ListActiveTasks(queue, opt); err == nil {
+        appendIfMatches(tasks)
+    }
+
+    // Check scheduled tasks
+    if tasks, err := i.ListScheduledTasks(queue, opt); err == nil {
+        appendIfMatches(tasks)
+    }
+
+    // Check retry tasks
+    if tasks, err := i.ListRetryTasks(queue, opt); err == nil {
+        appendIfMatches(tasks)
+    }
+
+    return allTasks, nil
+}
+
 
 // ListAggregatingTasks retrieves scheduled tasks from the specified group.
 //
