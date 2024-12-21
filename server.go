@@ -546,7 +546,6 @@ func NewServerFromRedisClient(c redis.UniversalClient, cfg Config) *Server {
 		logger:            logger,
 		broker:            rdb,
 		retryDelayFunc:    delayFunc,
-		taskCheckInterval: taskCheckInterval,
 		baseCtxFn:         baseCtxFn,
 		isFailureFunc:     isFailureFunc,
 		syncCh:            syncCh,
