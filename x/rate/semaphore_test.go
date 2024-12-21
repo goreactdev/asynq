@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hibiken/asynq"
-	"github.com/hibiken/asynq/internal/base"
-	asynqcontext "github.com/hibiken/asynq/internal/context"
+	"github.com/goreactdev/asynq"
+	"github.com/goreactdev/asynq/internal/base"
+	asynqcontext "github.com/goreactdev/asynq/internal/context"
 	"github.com/redis/go-redis/v9"
 )
 
